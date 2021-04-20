@@ -1,3 +1,10 @@
+# custom ignores
+test_imgs/
+mahotas/
+.vscode/
+
+
+# from github python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
