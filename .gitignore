@@ -2,6 +2,8 @@
 test_imgs/
 mahotas/
 .vscode/
+analysis/*.c
+analysis/*.cpp
 
 
 # from github python template
