@@ -1,7 +1,7 @@
 from tifffile import tifffile
 from skimage.morphology import skeletonize
 from util import *
-from branches import *
+# from branches import *
 # from analysis import skeleton as skeletons
 from analysis.skeleton import fast_skeletonize
 from analysis.hitmiss import old_get_end_points, get_image_convolve, get_branch_point_matches, old_scan_for_end, scan_for_end, scan_for_branch

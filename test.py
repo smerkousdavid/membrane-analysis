@@ -5,7 +5,7 @@ import numpy as np
 from skimage.util import invert
 from skimage.morphology import medial_axis, skeletonize
 from analysis.skeleton import fast_skeletonize
-from branches import detect_end_points as old_end_points, detect_branch_points as old_branch_points
+# from branches import detect_end_points as old_end_points, detect_branch_points as old_branch_points
 from analysis.hitmiss import old_get_end_points, get_image_convolve, get_branch_point_matches, old_scan_for_end, scan_for_end, scan_for_branch
 from analysis.treesearch import search_image_skeleton
 import timeit
@@ -16,7 +16,8 @@ import cv2
 # Generate the data
 #blobs = data.binary_blobs(200, blob_size_fraction=.2,
 #                          volume_fraction=.5) #, seed=1)
-blobs = cv2.imread('C:\\Users\\smerk\\Downloads\\test.png', cv2.IMREAD_GRAYSCALE)  # 'C:\\Users\\smerk\\UW\\Najafian Lab - Lab Najafian\\Foot Process Workspace\\out_class\\08_00816.tiff')[0]
+IMAGE = '/home/smerkous/Downloads/sample.png' #'C:\\Users\\smerk\\Downloads\\test.png'
+blobs = cv2.imread(IMAGE, cv2.IMREAD_GRAYSCALE)  # 'C:\\Users\\smerk\\UW\\Najafian Lab - Lab Najafian\\Foot Process Workspace\\out_class\\08_00816.tiff')[0]
 blobs = np.ascontiguousarray(blobs)
 print(blobs.shape)
 
@@ -53,15 +54,15 @@ for skel in data:
         #color = [cur_blue, 0, 20]
         #for i, (c, r) in enumerate(points):
         #    nimg[r, c] = color
-        #    color[1] = 0 + int(230 * float(i / float(len(points)))) 
+        #    color[1] = 0 + int(230 * float(i / float(len(points))))
         # cur_blue += 30
 
     #for x, y in skel.get_branches():
     #    # cv2.circle(nimg, branch, 1, random_color(), -1)
     #    nimg[y, x] = random_color()
 
-    #for end in skel.get_end_points():
-    #    cv2.circle(nimg, end, 3, (255, 255, 255), 1)
+    for end in skel.get_end_points():
+        cv2.circle(nimg, end, 3, (255, 255, 255), 1)
 
 # print(new_branches)
 #for x, y in new_branches:
@@ -70,8 +71,12 @@ for skel in data:
 img = nimg
 
 # img = cv2.resize(img, (600, 600))
-cv2.imshow('ok', cv2.resize(img, (700, 700), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_LANCZOS4))
-cv2.imshow('skel', cv2.resize(skeleton * 255, (700, 700), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_NEAREST))
+# cv2.circle(img, (46, 53), 3, (255, 255, 255), 1)
+img[53, 46] = (255, 255, 255)
+img[52, 47] = (255, 255, 255)
+cv2.imshow('orig', img)
+cv2.imshow('ok', cv2.resize(img, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_LANCZOS4))
+# cv2.imshow('skel', cv2.resize(skeleton * 255, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_NEAREST))
 cv2.waitKey(0)
 # skeleton_search(skeleton, detect_end_points(skeleton))
 """

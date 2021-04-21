@@ -169,7 +169,8 @@ namespace skeleton {
     std::vector<Skeleton> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int num_endpoints) {
         LOC_SET_t endset = LOC_SET_t();
         LOC_SET_t new_ignore_pos = LOC_SET_t();
-        std::unordered_set<cmp::location>::iterator end_it, ignore_it;
+        LOC_SET_t branch_check = LOC_SET_t();
+        std::unordered_set<cmp::location>::iterator end_it, ignore_it, branch_it;
         Segment cur_seg, prog_seg;
         SEG_SET_t prog_segs = SEG_SET_t();
         SEG_SET_t::iterator seg_it;
@@ -251,11 +252,12 @@ namespace skeleton {
                     if (pixel_count > 1 && loc.row >= 1 && loc.col >= 1 && loc.row < rows - 1 && loc.col < cols - 1) { // more than 1 bordering pixel
                         std::cout << "testing branch location  pixel count" << pixel_count << std::endl;
                         if (hitmiss::convolve_match_series(image, &BRANCH_MATCHES[0][0][0], NUM_BRANCH_MATCH, 0, 0, NUM_BRANCH_DIM, NUM_BRANCH_DIM, loc.row + BRANCH_MATRIX_OFFSET, loc.col + BRANCH_MATRIX_OFFSET, cols) == HIT_MISS) {
-                            std::cout << "missed a branch! loc " << loc.row << " " << loc.col << std::endl;
+                            std::cout << "missed a branch! loc " << loc.row << " " << loc.col << " points " << prog_seg.num_points << std::endl;
                             pixel_count = 1U; // let's continue the path and ignore the other one (simplist way is to ignore all points except the one we're traveling in)
 
                             // keep track because we might have to add a lot to our ignore list
                             uint8_t found_branch = 0U;
+
 
                             // I know this isn't the most optimal solution, but because this case is so flipping rare it doesn't have to be
                             for (int pos = 0; pos < POSITIONS; pos++) {
@@ -270,7 +272,7 @@ namespace skeleton {
                                 // to handle yet ANOTHER edge case where the skeleton does a weird turn and then branch off check to see if we have a move that will result in a branch and make that our last point
                                 if (IMAGE_LOC(image, t_loc.row, t_loc.col, cols) == HIT_MATCH && hitmiss::convolve_match_series(image, &BRANCH_MATCHES[0][0][0], NUM_BRANCH_MATCH, 0, 0, NUM_BRANCH_DIM, NUM_BRANCH_DIM, t_loc.row + BRANCH_MATRIX_OFFSET, t_loc.col + BRANCH_MATRIX_OFFSET, cols) == HIT_MATCH) {
                                     // yay! we hit a branch and can now not populate an ignore set
-                                    std::cout << "ON BOARD" << std::endl;
+                                    std::cout << "ON BOARD" << t_loc.row << " " << t_loc.col << std::endl;
                                     new_ignore_pos.insert(t_loc);
                                     found_branch = 1U;
                                     loc_found = t_loc; // let's go there!

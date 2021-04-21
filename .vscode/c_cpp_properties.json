@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/analysis/include",
+                "${workspaceFolder}/analysis/src"
+            ],
+            "defines": [],
+            "compilerPath": "/home/smerkous/.conda/envs/membrane-analysis/bin/x86_64-conda_cos6-linux-gnu-cc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

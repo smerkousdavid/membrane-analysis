@@ -1,7 +1,6 @@
 # custom ignores
 test_imgs/
 mahotas/
-.vscode/
 analysis/*.c
 analysis/*.cpp
 

@@ -52,7 +52,7 @@ def make_ext(ext):
         include_dirs=['.', np.get_include()] + special.get('includes', []),
         extra_compile_args=['-O3', '-Wall'] + special.get('compile', []),
         extra_link_args=['-g'],
-        libraries=[],
+        libraries=[]
     )
 
 
@@ -60,5 +60,9 @@ def make_ext(ext):
 setup(
     name='Membrane Analysis',
     packages=['analysis'],  # ex 'tools'
-    ext_modules=cythonize([make_ext(ext) for ext in scandir('.')], language_level=3)
+    ext_modules=cythonize(
+        [make_ext(ext) for ext in scandir('.')],
+        language_level=3,
+        nthreads=5
+    )
 )
