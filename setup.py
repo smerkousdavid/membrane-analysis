@@ -63,6 +63,7 @@ setup(
     ext_modules=cythonize(
         [make_ext(ext) for ext in scandir('.')],
         language_level=3,
-        nthreads=5
+        nthreads=5# ,
+        # gdb_debug=True
     )
 )

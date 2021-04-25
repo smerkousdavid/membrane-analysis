@@ -31,9 +31,9 @@ cdef class TreeSegment(object):
     cdef Segment segment
     cdef np.ndarray points
     cdef int num_points
-    cdef double distance
+    cdef long double distance
 
-    def __cinit__(self, np.ndarray points, int num_points, double distance):
+    def __cinit__(self, np.ndarray points, int num_points, long double distance):
         self.points = points
         self.num_points = num_points
         self.distance = distance
@@ -58,7 +58,7 @@ cdef TreeSegment make_tree_segment(Segment &ref, int row_first):
     cdef int f_ind, s_ind, point_ind
     cdef np.ndarray points
     cdef unsigned int num_points
-    cdef double distance
+    cdef long double distance
     cdef TreeSegment segment
     
     # simple copies
@@ -92,11 +92,13 @@ cdef class TreeSkeleton(object):
     cdef list segments
     cdef set branches
     cdef set end_points
+    cdef int row_first
 
-    def __cinit__(self, list segments, set branches, set end_points):
+    def __cinit__(self, list segments, set branches, set end_points, int row_first):
         self.segments = segments
         self.branches = branches
         self.end_points = end_points
+        self.row_first = row_first
 
     cdef void _set(self, Skeleton &ref):
         self.skeleton = ref
@@ -109,6 +111,11 @@ cdef class TreeSkeleton(object):
 
     def get_end_points(self):
         return self.end_points
+
+    def get_diameter(self):
+        cdef Segment seg = self.skeleton.get_diameter()
+        cdef int rf = self.row_first
+        return make_tree_segment(seg, rf)
 
 
 cdef TreeSkeleton make_tree_skeleton(Skeleton ref, int row_first):
@@ -138,7 +145,7 @@ cdef TreeSkeleton make_tree_skeleton(Skeleton ref, int row_first):
             end_points.add((end.col, end.row))
 
     # make the tree skeleton and update underneath struct structure
-    skeleton = TreeSkeleton(segments, branches, end_points)
+    skeleton = TreeSkeleton(segments, branches, end_points, row_first)
     skeleton._set(ref)
     return skeleton
 

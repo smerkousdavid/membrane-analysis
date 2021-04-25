@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cmath>
+#include <stack>
 #include <iostream> // UNCOMMENT FOR PRINT DEBUGGING
 #include "../include/treescan.hpp"
 #include "../include/hitmiss.hpp"
@@ -15,11 +16,12 @@
 #define BR 7
 #define NONE 8  // 8 = no-move
 #define POSITIONS 8  // number of total positions, that are movable, above
-#define ORTHOG (double) sqrt(2)
+#define ORTHOG (long double) sqrt(2)
+#define ORTHOG_MAX (long double) 2.0 * ORTHOG  // buffer for when comparing segments
 #define NUM_BRANCH_MATCH 19 // number of convolve branch matches
 #define NUM_BRANCH_DIM 3 // dimensions of the branch hits
                             // ORDER for arrays: TL, TT, TR, ML, MR, BL, BB, BR (so top left to bottom right) 
-static const double DIST[POSITIONS] = {ORTHOG, 1.0, ORTHOG, 1.0, 1.0, ORTHOG, 1.0, ORTHOG};
+static const long double DIST[POSITIONS] = {ORTHOG, 1.0, ORTHOG, 1.0, 1.0, ORTHOG, 1.0, ORTHOG};
 static const signed int OFFSETS_ROW[POSITIONS] = {-1, -1, -1, 0, 0, 1, 1, 1};
 static const signed int OFFSETS_COL[POSITIONS] = {-1, 0, 1, -1, 1, -1, 0, 1};
 static unsigned long segment_count = 0;
@@ -106,6 +108,12 @@ static const uint8_t BRANCH_MATCHES[NUM_BRANCH_MATCH][NUM_BRANCH_DIM][NUM_BRANCH
 
 
 namespace skeleton {
+    long double loc_distance(const LOC_t p1, const LOC_t p2) {
+        const long double r_diff = (long double) p1.row - (long double) p2.row;
+        const long double c_diff = (long double) p1.col - (long double) p2.col;
+        return std::sqrt((r_diff * r_diff) + (c_diff * c_diff));
+    }
+    
     /* SEGMENT START */
     Segment::Segment() {
         this->construct();
@@ -113,7 +121,7 @@ namespace skeleton {
 
     Segment::Segment(LOC_t initial_loc) {
         this->construct();
-        this->points.push_back(initial_loc);
+        this->add_point(initial_loc);
     }
 
     Segment::~Segment() {}
@@ -129,6 +137,140 @@ namespace skeleton {
         this->points = LOC_VEC_t();
     }
 
+    void Segment::add_point(LOC_t point) {
+        this->points.push_back(point);
+        this->num_points++;
+    }
+
+    void Segment::add_distance(long double dist) {
+        this->distance = this->distance + dist;
+    }
+
+    bool Segment::is_empty() {
+        return this->points.empty();
+    }
+
+    LOC_t Segment::get_point(size_t pos) {
+        return this->points.at(pos);
+    }
+
+    LOC_t Segment::get_first() {
+        return this->get_point(0);
+    }
+
+    long double Segment::get_distance() {
+        return this->distance;
+    }
+
+    LOC_t Segment::get_last() {
+        return this->get_point(this->points.size() - 1);
+    }
+
+    LOC_VEC_t Segment::get_points() {
+        return this->points;
+    }
+
+    LOC_VEC_t Segment::get_points_reversed() {
+        LOC_VEC_t rev_points;
+
+        // return empty vector
+        if (this->is_empty()) {
+            return rev_points;
+        }
+
+        LOC_VEC_t::reverse_iterator loc_it = this->points.rbegin();
+        while(loc_it != this->points.rend()) {
+            rev_points.push_back((LOC_t) *loc_it);
+            loc_it++;
+        }
+
+        return rev_points;
+    }
+
+    void Segment::extend_segment(Segment &other) {
+        LOC_t loc;
+        if (this->is_empty()) {
+            loc.row = 0; // roll of the dice which direction we take
+            loc.col = 0;
+        } else {
+            loc = this->get_last();
+        }
+
+        return this->extend_segment_close_to(other, loc);
+    }
+
+    void Segment::extend_segment_close_to(Segment &other, LOC_t close) {
+        if (other.is_empty()) {
+            std::cout << "empty?" << std::endl;
+            return; // nothing to do
+        }
+
+        long double dist_first = loc_distance(other.get_first(), close);
+        long double dist_last = loc_distance(other.get_last(), close);
+
+        if (dist_first <= dist_last) {  // keep current order (our last matches their first)
+            // std::cout << "foward scan" << std::endl;
+            // std::cout << "forward scan " << this->points.size() << std::endl;
+            for (LOC_VEC_t::iterator other_it = other.points.begin(); other_it != other.points.end(); ++other_it) {
+                this->points.push_back(*other_it);
+            }
+
+            // add distance of other segment to this one including the distance between our last and their first
+            this->add_distance(dist_first);
+        } else {
+            // add points in reverse
+            // std::cout << "reverse scan " << this->points.size() << std::endl;
+            for (LOC_VEC_t::reverse_iterator other_it = other.points.rbegin(); other_it != other.points.rend(); ++other_it) {
+                this->points.push_back(*other_it);
+            }
+
+            // add distance of other segment to this one including the distance between our last and their "last"
+            this->add_distance(dist_last);
+        }
+
+        // std::cout << "after scan " << this->points.size() << std::endl;
+
+        // both cases (add other segment's distance and the amount of total points)
+        this->add_distance(other.get_distance());
+        this->num_points = this->num_points + other.num_points;
+    }
+
+    bool Segment::is_first_or_last(LOC_t point) {
+        if (this->is_empty()) {
+            return 0;  // can't be because we have no points
+        }
+
+        // check to see if this point is a part of the "ends" of the segment
+        return (this->get_first() == point) || (this->get_last() == point); 
+    }
+
+    LOC_t Segment::get_opposite_loc(LOC_t loc) {
+        if (this->is_empty()) {
+            return loc; // nothing to do
+        }
+
+        if (this->get_first() == loc) {
+            return this->get_last(); // opposite of first location
+        } else if (this->get_last() == loc) {
+            return this->get_first(); // opposite of last location
+        }
+        return loc; // there isn't an opposite of this location
+    }
+
+    long double Segment::get_end_distance(LOC_t loc) {
+        const long double d1 = loc_distance(this->get_first(), loc);
+        const long double d2 = loc_distance(this->get_last(), loc);
+        return (d1 < d2) ? d1 : d2;
+    }
+
+    bool Segment::is_close_to(LOC_t loc) {
+        return this->get_end_distance(loc) <= ORTHOG_MAX;  // within a pixel or two
+    }
+
+    void Segment::set_ignore(LOC_SET_t ignore) {
+        this->ignore_points = ignore;
+    }
+
     Segment Segment::copy() {
         Segment new_seg = Segment();
         new_seg.id = this->id;
@@ -137,6 +279,14 @@ namespace skeleton {
         new_seg.distance = this->distance;
         new_seg.points = this->points;
         return new_seg;
+    }
+
+    void Segment::copy_to(Segment *other) {
+        other->id = this->id;
+        other->num_points = this->num_points;
+        other->ignore_points = this->ignore_points;
+        other->distance = this->distance;
+        other->points = this->points;
     }
 
     inline bool Segment::operator== (const Segment &other) const {
@@ -164,7 +314,245 @@ namespace skeleton {
         this->branch_points = LOC_SET_t();
         this->end_points = LOC_SET_t();
     }
+
+    bool Skeleton::is_empty() {
+        return this->segments.empty() || this->end_points.empty();
+    }
+
+    bool Skeleton::follow_long_path(LOC_t start_loc, Segment &scan, Segment *full, LOC_SET_t &ends_used) {
+        // nothing to do if empty
+        if (scan.is_empty()) {
+            return false;
+        }
+        
+        // get the other side so we can find points close to this one
+        LOC_t opp_loc = scan.get_opposite_loc(start_loc);
+
+        // std::cout << "attempt extend" << std::endl;
+
+        // add current scan to path
+        if (full->is_empty()) {
+            // std::cout << "START " << start_loc.row << " " << start_loc.col << std::endl;
+            full->extend_segment_close_to(scan, start_loc); // extend and keep order of that close to start location
+        } else {
+            full->extend_segment_close_to(scan, full->get_last()); // keep the order that keeps the next segment closest to our overall path
+        }
+        
+        // add this to our "used" endpoint list
+        ends_used.insert(scan.get_first());
+        ends_used.insert(scan.get_last());
+
+        // let's make sure it's not an end first
+        if (this->end_points.find(opp_loc) != this->end_points.end()) {
+            // it's an end point so we're done with this segment
+            return false; // let's not continue this path
+        }
+
+        // std::cout << "done scan end check" << std::endl;
+
+        // let's try to find the closest segment to us by distance to first/last points
+        std::vector<std::pair<Segment, LOC_SET_t>> follow_paths;
+        for(std::vector<Segment>::iterator seg_it = this->segments.begin(); seg_it != this->segments.end(); ++seg_it) {
+            if (seg_it->is_empty() || seg_it->get_distance() == 0.0) {
+                continue;
+            }
+
+            // we found a nearby segment (that hasn't been used yet)
+            LOC_t first, last;
+            first = seg_it->get_first();
+            last = seg_it->get_last();
+            if (seg_it->is_close_to(opp_loc) && (ends_used.find(first) == ends_used.end()) && (ends_used.find(last) == ends_used.end())) {
+                Segment full_copy = full->copy();  // copy full segment to compare
+                LOC_SET_t ends_copy = ends_used;
+                
+                // let's get which end to follow (depending on which one is closer)
+                LOC_t end_follow;
+                if (loc_distance(first, opp_loc) < loc_distance(last, opp_loc)) {
+                    end_follow = first;
+                } else {
+                    end_follow = last;
+                }
+
+                // std::cout << "    FOLLOW " << end_follow.row << " " << end_follow.col << " dist " << seg_it->get_end_distance(opp_loc) << " OPPOSITE " << opp_loc.row << " " << opp_loc.col << std::endl;
+                
+                // follow the path of the current segment and add it to our full "copy"
+                // std::cout << "path before had " << full_copy.points.size() << " points! however full has" << full->points.size()  << std::endl;
+                ends_copy.insert(full_copy.get_first());
+                ends_copy.insert(full_copy.get_last());
+                ends_copy.insert(end_follow);
+                this->follow_long_path(end_follow, *seg_it, &full_copy, ends_copy);
+
+                // std::cout << "path now has " << full_copy.points.size() << " points!" << std::endl;
+
+                // add it to our comparator list
+                follow_paths.push_back(std::pair<Segment, LOC_SET_t>(full_copy, ends_copy));
+            }
+        }
+
+        // let's find which sub-path is the longest path
+        Segment longest_seg = scan; // use current scan as the "longest" path
+        for(std::vector<std::pair<Segment, LOC_SET_t>>::iterator pair_it = follow_paths.begin(); pair_it != follow_paths.end(); ++pair_it) {
+            if (pair_it->first.get_distance() > longest_seg.get_distance()) {
+                longest_seg = pair_it->first; // copy longest segment
+                // ends_used
+            }
+        }
+
+        // copy to full report
+        longest_seg.copy_to(full);
+
+        return true; // we've finished the path (used just in case our seg scans of the skeletons are all empty)
+    }
+
+    Segment Skeleton::get_diameter() {
+        Segment diameter;
+
+        // let's only work with a valid segment list
+        if (!this->is_empty()) {
+            // let's handle a special case of no branching to skip all of the branch following nonsense
+            if (this->segments.size() == 1) {
+                return this->segments.at(0);  // get the first segment and we're done :)
+            }
+
+            // since each endpoint will follow a path we need segments for each path to keep track of points and distance
+            std::vector<std::pair<LOC_t, Segment>> end_follow;
+
+            // let's construct all of the possible segment combinations starting with each segment
+            LOC_SET_t::iterator end_it = this->end_points.begin();
+            while (end_it != this->end_points.end()) {
+                LOC_t end = *end_it;
+
+                // scan segments and find one that matches the end
+                for(std::vector<Segment>::iterator seg_it = this->segments.begin(); seg_it != this->segments.end(); ++seg_it) {
+                    // found a matching segment that has this end
+                    if (!seg_it->is_empty() && seg_it->is_first_or_last(end)) {
+                        end_follow.push_back(std::pair<LOC_t, Segment>(end, *seg_it));
+                    }
+                }
+                end_it++;
+            }
+
+            // now that we have the ends matched with their segments let's follow paths
+            LOC_SET_t ends_used;
+            for(std::vector<std::pair<LOC_t, Segment>>::iterator pair_it = end_follow.begin(); pair_it != end_follow.end(); ++pair_it) {
+                ends_used.clear(); // clear results
+                
+                // std::cout << "PAIR!" << std::endl;
+
+                Segment follow_path;
+                if (this->follow_long_path(pair_it->first, pair_it->second, &follow_path, ends_used)) {  // make sure we have a successful scan
+                    if (follow_path.get_distance() > diameter.get_distance()) {
+                        diameter = follow_path;  // found longest path
+                    }
+                }
+            }
+        }
+
+        return diameter;
+    }
     /* SKELETON END */
+
+    void fix_skeleton(std::vector<Skeleton> *skeleton) {
+        /** handles fixing odd things about the skeleton, such as segments that are tiny */
+
+        // find all empty segments
+        int passes = 0; 
+        bool any_empty = true;
+        while (any_empty && passes <= 3) { // max of 3 checks
+            any_empty = false; // keep going until there are no more empty segments
+            std::cout << "PASS" << std::endl;
+            
+            int index = 0;
+            for(std::vector<Skeleton>::iterator skel_it = skeleton->begin(); skel_it != skeleton->end(); ++skel_it) {
+                Skeleton cur_skel = *skel_it;
+                
+                // skip if there aren't any segments
+                if (cur_skel.is_empty()) {
+                    continue;
+                }
+
+                // populate a list of empty segments
+                std::vector<LOC_t> empty_segs;
+
+                // iterate through all segments
+                std::vector<Segment>::iterator seg_it = cur_skel.segments.begin();            
+                while(seg_it != cur_skel.segments.end()) {
+                    if (seg_it->points.size() == 1) { // assumed to have only one point (so no theoritical distance)
+                        empty_segs.push_back(seg_it->get_first()); // deref and copy to empty segs
+                        seg_it = cur_skel.segments.erase(seg_it); // erase and return new valid pointer
+                    } else {
+                        seg_it++;
+                    }
+                }
+
+                // more empty ones :(
+                if (!empty_segs.empty()) {
+                    any_empty = true;
+                }
+
+                // shift through all of the empty segs and continue to find replacements
+                bool dirty = false; // why copy ref when we don't need to
+                std::vector<LOC_t>::iterator empt_it = empty_segs.begin();
+                while (empt_it != empty_segs.end()) {
+                    // Segment cur_seg = *empt_it;
+                    // get the one and only point
+                    LOC_t fix_loc = *empt_it;
+
+                    // find a close segment (let's try being really strict at first and then ease up if there are no other matches)
+                    int add_ind = -1;
+                    bool add_front = false;
+                    bool found = false;
+                    for (long double match_dist = 1.0; match_dist <= 3.0; match_dist++) {
+                        int cur_ind = 0;
+                        for(std::vector<Segment>::iterator seg_it = cur_skel.segments.begin(); seg_it != cur_skel.segments.end(); ++seg_it) {   
+                            if (loc_distance(fix_loc, seg_it->get_first()) <= match_dist) { // within 1-2 pixels
+                                add_ind = cur_ind; 
+                                found = true;
+                                add_front = true;
+                                break;
+                            } else if(loc_distance(fix_loc, seg_it->get_last()) <= match_dist) {
+                                add_ind = cur_ind; 
+                                found = true;
+                                add_front = false;
+                                break;
+                            } // else is that this segment didn't match any of the distance conditions above
+
+                            cur_ind++;
+                        }
+
+                        // exit fix loop
+                        if (found) break;
+                    }
+
+                    // if we found a matching segment let's update it and replace it in our skeleton
+                    if (found && add_ind >= 0) {
+                        if (add_front) {
+                            cur_skel.segments.at(add_ind).points.insert(cur_skel.segments.at(add_ind).points.begin(), fix_loc); // add to the beginning
+                        } else {
+                            cur_skel.segments.at(add_ind).points.push_back(fix_loc);
+                        }
+
+                        // we're dirty :)
+                        dirty = true;
+                    }
+
+                    // remove elem
+                    empt_it = empty_segs.erase(empt_it);
+                }
+
+                // update original ref if dirty (most of the time we're dirty ;))
+                if (dirty) {
+                    skeleton->at(index) = cur_skel;
+                }
+
+                // increment rep index
+                index++;
+            }
+
+            // we want to quit the main check loop eventually
+            passes++;
+        }
+    }
 
     std::vector<Skeleton> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int num_endpoints) {
         LOC_SET_t endset = LOC_SET_t();
@@ -249,15 +637,14 @@ namespace skeleton {
 
                     // if we think the current location is a branch (in some odd cases this can happen with right corners) let's double check it with some convolves
                     // if we hit this edge case on the edge of the image... then idk we're really SOL! In terms of bound checks let's ignore borders
-                    if (pixel_count > 1 && loc.row >= 1 && loc.col >= 1 && loc.row < rows - 1 && loc.col < cols - 1) { // more than 1 bordering pixel
-                        std::cout << "testing branch location  pixel count" << pixel_count << std::endl;
+                    /*if (pixel_count > 1 && loc.row >= 1 && loc.col >= 1 && loc.row < rows - 1 && loc.col < cols - 1) { // more than 1 bordering pixel
+                        std::cout << "testing branch location " << loc.row << " " << loc.col << " pixel count" << pixel_count << std::endl;
                         if (hitmiss::convolve_match_series(image, &BRANCH_MATCHES[0][0][0], NUM_BRANCH_MATCH, 0, 0, NUM_BRANCH_DIM, NUM_BRANCH_DIM, loc.row + BRANCH_MATRIX_OFFSET, loc.col + BRANCH_MATRIX_OFFSET, cols) == HIT_MISS) {
                             std::cout << "missed a branch! loc " << loc.row << " " << loc.col << " points " << prog_seg.num_points << std::endl;
                             pixel_count = 1U; // let's continue the path and ignore the other one (simplist way is to ignore all points except the one we're traveling in)
 
                             // keep track because we might have to add a lot to our ignore list
                             uint8_t found_branch = 0U;
-
 
                             // I know this isn't the most optimal solution, but because this case is so flipping rare it doesn't have to be
                             for (int pos = 0; pos < POSITIONS; pos++) {
@@ -274,6 +661,7 @@ namespace skeleton {
                                     // yay! we hit a branch and can now not populate an ignore set
                                     std::cout << "ON BOARD" << t_loc.row << " " << t_loc.col << std::endl;
                                     new_ignore_pos.insert(t_loc);
+                                    new_ignore_pos.insert(loc); // ignore current
                                     found_branch = 1U;
                                     loc_found = t_loc; // let's go there!
                                     pixel_ind = (unsigned int) pos; // keep track for our distance formula
@@ -300,7 +688,7 @@ namespace skeleton {
                                 }
                             }
                         }
-                    }
+                    }*/
 
                     // determine if we've branched, at an end, or are continuing a path
                     if (pixel_count == 1U) { // continue path
@@ -308,10 +696,10 @@ namespace skeleton {
                         new_ignore_pos.insert(loc);
 
                         // let's add the point
+                        prog_seg.add_point(loc_found);
+                        prog_seg.add_distance((double) DIST[pixel_ind]);  // add to the segment distance
+                        prog_seg.set_ignore(new_ignore_pos);
                         prog_seg.points.push_back(loc_found);
-                        prog_seg.num_points++;
-                        prog_seg.ignore_points = new_ignore_pos;
-                        prog_seg.distance = prog_seg.distance + (double) DIST[pixel_ind];  // add to the segment distance
                     } else if (pixel_count == 0U) { // end node
                         // add end node to skeleton
                         skeleton.end_points.insert(loc);
@@ -363,6 +751,9 @@ namespace skeleton {
             // add the skeleton to our vector
             skeleton_vec.push_back(skeleton);
         }
+
+        // fix results before returning (removing single pixel segments)
+        fix_skeleton(&skeleton_vec);
 
         return skeleton_vec;
     }

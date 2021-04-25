@@ -25,7 +25,7 @@ cdef extern from 'include/treescan.hpp' namespace 'skeleton':
         Segment(location initial_loc) except +
         vector[location] points
         unordered_set[location] ignore_points
-        double distance
+        long double distance
     
     cdef cppclass Skeleton:
         Skeleton() except +
@@ -34,5 +34,6 @@ cdef extern from 'include/treescan.hpp' namespace 'skeleton':
         unordered_set[location] end_points
         unsigned int num_segments
         void add_segment(const Segment)
+        Segment get_diameter()
     
     vector[Skeleton] search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int end_points)

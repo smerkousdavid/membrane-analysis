@@ -11,12 +11,13 @@ from analysis.treesearch import search_image_skeleton
 import timeit
 import random
 import tifffile
+import time
 import cv2
 
 # Generate the data
 #blobs = data.binary_blobs(200, blob_size_fraction=.2,
 #                          volume_fraction=.5) #, seed=1)
-IMAGE = '/home/smerkous/Downloads/sample.png' #'C:\\Users\\smerk\\Downloads\\test.png'
+IMAGE = '/home/smerkous/Downloads/sample2.png' #'C:\\Users\\smerk\\Downloads\\test.png'
 blobs = cv2.imread(IMAGE, cv2.IMREAD_GRAYSCALE)  # 'C:\\Users\\smerk\\UW\\Najafian Lab - Lab Najafian\\Foot Process Workspace\\out_class\\08_00816.tiff')[0]
 blobs = np.ascontiguousarray(blobs)
 print(blobs.shape)
@@ -39,12 +40,20 @@ end_points = scan_for_end(skeleton)
 
 print('skeleton...')
 data = search_image_skeleton(skeleton, end_points, row_first=False)
+# print(np.mean(timeit.repeat(repeat=3, number=100, stmt=lambda: cv2.findContours)))
 
 #print(skeleton[1102, 0])
 #data = test_search(skeleton, end_points)
 nimg = np.zeros((skeleton.shape[0], skeleton.shape[1], 3), dtype=np.uint8)
 
 for skel in data:
+    d = skel.get_diameter()
+    print(d.get_points())
+    if len(d.get_points()) > 0:
+        points = d.get_points()
+        points = np.append(points, points[::-1], axis=0)
+        cv2.drawContours(nimg, [points], 0, (255, 255, 255), 3)
+    
     cur_blue = 0
     for seg in skel.get_segments():
         points = seg.get_points()
@@ -72,10 +81,11 @@ img = nimg
 
 # img = cv2.resize(img, (600, 600))
 # cv2.circle(img, (46, 53), 3, (255, 255, 255), 1)
-img[53, 46] = (255, 255, 255)
-img[52, 47] = (255, 255, 255)
+# img[53, 46] = (255, 255, 255)
+# img[52, 47] = (255, 255, 255)
 cv2.imshow('orig', img)
-cv2.imshow('ok', cv2.resize(img, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_LANCZOS4))
+cv2.imshow('skel',  cv2.resize(skeleton * 255, (1000, 1000), interpolation=cv2.INTER_NEAREST))
+cv2.imshow('ok', cv2.resize(img, (1000, 1000), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_LANCZOS4))
 # cv2.imshow('skel', cv2.resize(skeleton * 255, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_NEAREST))
 cv2.waitKey(0)
 # skeleton_search(skeleton, detect_end_points(skeleton))

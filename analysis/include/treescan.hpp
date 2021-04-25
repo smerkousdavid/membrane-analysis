@@ -21,10 +21,27 @@ namespace skeleton {
             Segment(LOC_t initial_loc);
             ~Segment();
             uint32_t num_points;
-            double distance;
+            long double distance;
             unsigned long id;
             inline bool operator== (const Segment &other) const;
             Segment copy();
+            void copy_to(Segment *other);
+            void add_point(LOC_t point);
+            void add_distance(long double dist);
+            void set_ignore(LOC_SET_t points);
+            long double get_distance();
+            bool is_empty();
+            LOC_VEC_t get_points();
+            LOC_VEC_t get_points_reversed();
+            LOC_t get_point(size_t pos);
+            LOC_t get_first();
+            LOC_t get_last();
+            LOC_t get_opposite_loc(LOC_t loc);
+            bool is_first_or_last(LOC_t point1);
+            long double get_end_distance(LOC_t loc);
+            bool is_close_to(LOC_t loc);
+            void extend_segment_close_to(Segment &other, LOC_t close);
+            void extend_segment(Segment &other);
         private:
             void construct();
     };
@@ -43,6 +60,9 @@ namespace skeleton {
             Skeleton();
             ~Skeleton();
             void add_segment(const Segment);
+            bool is_empty();
+            bool follow_long_path(LOC_t start_loc, Segment &scan, Segment *full, LOC_SET_t &ends_used);
+            Segment get_diameter();
         private:
             void construct();
     };
