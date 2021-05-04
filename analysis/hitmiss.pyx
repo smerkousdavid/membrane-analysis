@@ -6,7 +6,8 @@
 import numpy as np
 cimport numpy as np
 from libcpp.vector cimport vector
-from hitmiss cimport convolve_match_image, location, uint32_t, uint8_t
+from hitmiss cimport convolve_match_image, location
+from types cimport uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 np.import_array()
 
 
@@ -17,9 +18,6 @@ cdef struct s_Coord:
 
 
 # define struct
-ctypedef np.npy_bool NPBOOL_t
-ctypedef np.uint8_t NPUINT_t
-ctypedef np.int32_t NPINT32_t
 ctypedef s_Coord Coord
 cdef size_t COORD_SIZE = sizeof(Coord)
 cdef NPBOOL_t FIND_VAL = <NPBOOL_t> 1

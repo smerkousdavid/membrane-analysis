@@ -17,6 +17,49 @@ namespace cmp {
         inline bool operator!=(const location &other) const {
             return row != other.row || col != other.col;
         }
+
+        inline location operator+(const location &other) const {
+            location snew;
+            snew.row = row + other.row;
+            snew.col = col + other.col;
+            return snew;
+        }
+
+        inline location operator-(const location &other) const {
+            location snew;
+            snew.row = row - other.row;
+            snew.col = col - other.col;
+            return snew;
+        }
+
+        inline location operator*(const location &other) const {
+            location snew;
+            snew.row = row * other.row;
+            snew.col = col * other.col;
+            return snew;
+        }
+
+        inline location operator/(const location &other) const {
+            location snew;
+            snew.row = row / other.row;
+            snew.col = col / other.col;
+            return snew;
+        }
+    };
+
+    // generally used for lines and their distances
+    struct location_pair {
+        location one;
+        location two;
+        long double distance;
+
+        inline bool operator==(const location_pair &other) const {
+            return one == other.one && two == other.two;
+        }
+
+        inline bool operator!=(const location_pair &other) const {
+            return one != other.one || two != other.two;
+        }
     };
 }
 

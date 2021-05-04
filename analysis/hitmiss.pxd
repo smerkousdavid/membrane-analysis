@@ -1,16 +1,12 @@
 from libcpp.vector cimport vector
 from libcpp.unordered_set cimport unordered_set
+from types cimport uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 cimport numpy as np
 
 
 cdef extern from 'src/hitmiss.cpp':
     pass
 
-
-# define types (ctypedefs are iffy)
-ctypedef unsigned char uint8_t
-ctypedef unsigned int uint32_t
-ctypedef signed int int32_t
 
 
 cdef extern from 'include/compare.hpp' namespace 'cmp':

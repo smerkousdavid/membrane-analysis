@@ -3,6 +3,8 @@ test_imgs/
 mahotas/
 analysis/*.c
 analysis/*.cpp
+Profile.prof
+profile.svg
 
 
 # from github python template

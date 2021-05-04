@@ -9,6 +9,7 @@
 
 #define LOC_t cmp::location
 #define LOC_VEC_t std::vector<cmp::location>
+#define LOC_PAIR_VEC_t std::vector<cmp::location_pair>
 #define LOC_SET_t std::unordered_set<cmp::location>
 
 
@@ -57,6 +58,8 @@ namespace skeleton {
             LOC_SET_t branch_points;
             LOC_SET_t end_points;
             uint32_t num_segments;
+            bool diameter_dirty;
+            Segment diameter;
             Skeleton();
             ~Skeleton();
             void add_segment(const Segment);
@@ -67,7 +70,8 @@ namespace skeleton {
             void construct();
     };
 
-    std::vector<Skeleton> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols,  const int num_endpoints);
+    long double loc_distance(const LOC_t p1, const LOC_t p2);
+    std::vector<Skeleton*> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols,  const int num_endpoints);
 }
 
 // add definition for a segment vector and unordered set

@@ -17,10 +17,11 @@
 #define NONE 8  // 8 = no-move
 #define POSITIONS 8  // number of total positions, that are movable, above
 #define ORTHOG (long double) sqrt(2)
-#define ORTHOG_MAX (long double) 2.0 * ORTHOG  // buffer for when comparing segments
+#define ORTHOG_MAX (long double) 2.0 * ORTHOG  // buffer for when comparing segments and how close they are (we want to be within 2 pixels of another segment)
+#define MAX_FIX_PASSES 4  // max number of times to clear out single pixel segments and other common issues when scanning complex branches
 #define NUM_BRANCH_MATCH 19 // number of convolve branch matches
 #define NUM_BRANCH_DIM 3 // dimensions of the branch hits
-                            // ORDER for arrays: TL, TT, TR, ML, MR, BL, BB, BR (so top left to bottom right) 
+
 static const long double DIST[POSITIONS] = {ORTHOG, 1.0, ORTHOG, 1.0, 1.0, ORTHOG, 1.0, ORTHOG};
 static const signed int OFFSETS_ROW[POSITIONS] = {-1, -1, -1, 0, 0, 1, 1, 1};
 static const signed int OFFSETS_COL[POSITIONS] = {-1, 0, 1, -1, 1, -1, 0, 1};
@@ -201,7 +202,7 @@ namespace skeleton {
 
     void Segment::extend_segment_close_to(Segment &other, LOC_t close) {
         if (other.is_empty()) {
-            std::cout << "empty?" << std::endl;
+            // std::cout << "empty?" << std::endl;
             return; // nothing to do
         }
 
@@ -313,6 +314,7 @@ namespace skeleton {
         this->num_segments = (uint32_t) 0;
         this->branch_points = LOC_SET_t();
         this->end_points = LOC_SET_t();
+        this->diameter_dirty = true;
     }
 
     bool Skeleton::is_empty() {
@@ -332,7 +334,6 @@ namespace skeleton {
 
         // add current scan to path
         if (full->is_empty()) {
-            // std::cout << "START " << start_loc.row << " " << start_loc.col << std::endl;
             full->extend_segment_close_to(scan, start_loc); // extend and keep order of that close to start location
         } else {
             full->extend_segment_close_to(scan, full->get_last()); // keep the order that keeps the next segment closest to our overall path
@@ -405,7 +406,12 @@ namespace skeleton {
     }
 
     Segment Skeleton::get_diameter() {
-        Segment diameter;
+        // if we're not dirty let's return the previously calculated diameter
+        if (!this->diameter_dirty) {
+            return this->diameter;
+        }
+
+        // Segment diameter;
 
         // let's only work with a valid segment list
         if (!this->is_empty()) {
@@ -442,32 +448,35 @@ namespace skeleton {
                 Segment follow_path;
                 if (this->follow_long_path(pair_it->first, pair_it->second, &follow_path, ends_used)) {  // make sure we have a successful scan
                     if (follow_path.get_distance() > diameter.get_distance()) {
-                        diameter = follow_path;  // found longest path
+                        this->diameter = follow_path;  // found longest path
                     }
                 }
             }
         }
 
-        return diameter;
+        // make sure it's no longer dirty so use the cached version if possible
+        this->diameter_dirty = false;
+
+        return this->diameter;
     }
     /* SKELETON END */
 
-    void fix_skeleton(std::vector<Skeleton> *skeleton) {
+    void fix_skeleton(std::vector<Skeleton*> *skeleton) {
         /** handles fixing odd things about the skeleton, such as segments that are tiny */
 
         // find all empty segments
         int passes = 0; 
         bool any_empty = true;
-        while (any_empty && passes <= 3) { // max of 3 checks
+        while (any_empty && passes <= MAX_FIX_PASSES) { // max of 3 checks
             any_empty = false; // keep going until there are no more empty segments
-            std::cout << "PASS" << std::endl;
+            // std::cout << "PASS" << std::endl;
             
             int index = 0;
-            for(std::vector<Skeleton>::iterator skel_it = skeleton->begin(); skel_it != skeleton->end(); ++skel_it) {
-                Skeleton cur_skel = *skel_it;
+            for(std::vector<Skeleton*>::iterator skel_it = skeleton->begin(); skel_it != skeleton->end(); ++skel_it) {
+                Skeleton *cur_skel = *skel_it;
                 
                 // skip if there aren't any segments
-                if (cur_skel.is_empty()) {
+                if (cur_skel->is_empty()) {
                     continue;
                 }
 
@@ -475,11 +484,12 @@ namespace skeleton {
                 std::vector<LOC_t> empty_segs;
 
                 // iterate through all segments
-                std::vector<Segment>::iterator seg_it = cur_skel.segments.begin();            
-                while(seg_it != cur_skel.segments.end()) {
+                std::vector<Segment>::iterator seg_it = cur_skel->segments.begin();
+                while(seg_it != cur_skel->segments.end()) {
                     if (seg_it->points.size() == 1) { // assumed to have only one point (so no theoritical distance)
                         empty_segs.push_back(seg_it->get_first()); // deref and copy to empty segs
-                        seg_it = cur_skel.segments.erase(seg_it); // erase and return new valid pointer
+                        cur_skel->diameter_dirty = true;
+                        seg_it = cur_skel->segments.erase(seg_it); // erase and return new valid pointer
                     } else {
                         seg_it++;
                     }
@@ -493,28 +503,37 @@ namespace skeleton {
                 // shift through all of the empty segs and continue to find replacements
                 bool dirty = false; // why copy ref when we don't need to
                 std::vector<LOC_t>::iterator empt_it = empty_segs.begin();
+                // std::cout << "EMPTY" << std::endl;
                 while (empt_it != empty_segs.end()) {
                     // Segment cur_seg = *empt_it;
                     // get the one and only point
+                    // std::cout << "SCANNER" << std::endl;
                     LOC_t fix_loc = *empt_it;
 
                     // find a close segment (let's try being really strict at first and then ease up if there are no other matches)
                     int add_ind = -1;
                     bool add_front = false;
                     bool found = false;
+                    long double found_distance = 0.0;
                     for (long double match_dist = 1.0; match_dist <= 3.0; match_dist++) {
                         int cur_ind = 0;
-                        for(std::vector<Segment>::iterator seg_it = cur_skel.segments.begin(); seg_it != cur_skel.segments.end(); ++seg_it) {   
-                            if (loc_distance(fix_loc, seg_it->get_first()) <= match_dist) { // within 1-2 pixels
+                        for(std::vector<Segment>::iterator seg_it = cur_skel->segments.begin(); seg_it != cur_skel->segments.end(); ++seg_it) {   
+                            long double measure_distance = loc_distance(fix_loc, seg_it->get_first());
+                            if (measure_distance <= match_dist) { // within 1-2 pixels
                                 add_ind = cur_ind; 
                                 found = true;
-                                add_front = true;
+                                add_front = true;  // don't reverse the segment when adding it to the global list
+                                found_distance = measure_distance; // use this distance to add to the total segment length
                                 break;
-                            } else if(loc_distance(fix_loc, seg_it->get_last()) <= match_dist) {
-                                add_ind = cur_ind; 
-                                found = true;
-                                add_front = false;
-                                break;
+                            } else {
+                                measure_distance = loc_distance(fix_loc, seg_it->get_last());
+                                if(measure_distance <= match_dist) {
+                                    add_ind = cur_ind; 
+                                    found = true;
+                                    add_front = false;
+                                    found_distance = measure_distance; // use this distance to add to the total segment length
+                                    break;
+                                }
                             } // else is that this segment didn't match any of the distance conditions above
 
                             cur_ind++;
@@ -524,13 +543,20 @@ namespace skeleton {
                         if (found) break;
                     }
 
+                    // std::cout << "SCANNED" << std::endl;
+
                     // if we found a matching segment let's update it and replace it in our skeleton
                     if (found && add_ind >= 0) {
+                        Segment &ref_seg = cur_skel->segments.at(add_ind);
+                        cur_skel->diameter_dirty = true;
                         if (add_front) {
-                            cur_skel.segments.at(add_ind).points.insert(cur_skel.segments.at(add_ind).points.begin(), fix_loc); // add to the beginning
+                            ref_seg.points.insert(ref_seg.points.begin(), fix_loc); // add to the beginning
                         } else {
-                            cur_skel.segments.at(add_ind).points.push_back(fix_loc);
+                            ref_seg.points.push_back(fix_loc);
                         }
+
+                        // let's add this distance between the two points
+                        ref_seg.add_distance(found_distance);
 
                         // we're dirty :)
                         dirty = true;
@@ -538,11 +564,6 @@ namespace skeleton {
 
                     // remove elem
                     empt_it = empty_segs.erase(empt_it);
-                }
-
-                // update original ref if dirty (most of the time we're dirty ;))
-                if (dirty) {
-                    skeleton->at(index) = cur_skel;
                 }
 
                 // increment rep index
@@ -554,7 +575,7 @@ namespace skeleton {
         }
     }
 
-    std::vector<Skeleton> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int num_endpoints) {
+    std::vector<Skeleton*> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int num_endpoints) {
         LOC_SET_t endset = LOC_SET_t();
         LOC_SET_t new_ignore_pos = LOC_SET_t();
         LOC_SET_t branch_check = LOC_SET_t();
@@ -563,7 +584,7 @@ namespace skeleton {
         SEG_SET_t prog_segs = SEG_SET_t();
         SEG_SET_t::iterator seg_it;
         cmp::location loc, loc_test, loc_found;
-        std::vector<Skeleton> skeleton_vec;
+        std::vector<Skeleton*> skeleton_vec;
         int row, col, offset_row, offset_col;
         uint32_t pixel_count, pixel_ind;
 
@@ -593,10 +614,10 @@ namespace skeleton {
             prog_segs.insert(cur_seg);
 
             // make a new skeleton
-            Skeleton skeleton = Skeleton();
-            skeleton.branch_points.clear(); // make sure to start off with empty set (paranoid :))
-            skeleton.end_points.clear();
-            skeleton.end_points.insert(loc); // our first endpoint is a part of this skeleton
+            Skeleton *skeleton = new Skeleton();
+            skeleton->branch_points.clear(); // make sure to start off with empty set (paranoid :))
+            skeleton->end_points.clear();
+            skeleton->end_points.insert(loc); // our first endpoint is a part of this skeleton
 
             // iterate through current segments
             while (!prog_segs.empty()) {
@@ -699,27 +720,26 @@ namespace skeleton {
                         prog_seg.add_point(loc_found);
                         prog_seg.add_distance((double) DIST[pixel_ind]);  // add to the segment distance
                         prog_seg.set_ignore(new_ignore_pos);
-                        prog_seg.points.push_back(loc_found);
                     } else if (pixel_count == 0U) { // end node
                         // add end node to skeleton
-                        skeleton.end_points.insert(loc);
+                        skeleton->end_points.insert(loc);
                         try {
                             endset.erase(loc); // try to erase the new location
                         } catch(...) {}
-                        skeleton.add_segment(prog_seg); // add location
+                        skeleton->add_segment(prog_seg); // add location
 
                         // we're done with this segment
                         break;
-                    } else if (skeleton.branch_points.find(loc) != skeleton.branch_points.end()) {
+                    } else if (skeleton->branch_points.find(loc) != skeleton->branch_points.end()) {
                         break;  // make sure we're not recursively looping through the same branch just incase it reconnects somewhere else
                     } else {
                         new_ignore_pos.insert(loc); // add current location so next branches don't detect previous branch
 
                         // add this segment to skeleton and remove it from our in progress list
-                        skeleton.add_segment(prog_seg);
+                        skeleton->add_segment(prog_seg);
 
                         // add this point as a branch location to the skeleton (useful for later)
-                        skeleton.branch_points.insert(loc);
+                        skeleton->branch_points.insert(loc);
 
                         // construct new branches
                         ignore_it = new_ignore_pos.begin();
@@ -749,6 +769,7 @@ namespace skeleton {
             // @TODO find out why
 
             // add the skeleton to our vector
+            skeleton->diameter_dirty = true; // new points! so it's definetely dirty
             skeleton_vec.push_back(skeleton);
         }
 

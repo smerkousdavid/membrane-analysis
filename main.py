@@ -71,6 +71,14 @@ def angle_step(angle):
         return [1, 1]
 
 
+def fix_angle(a):
+    while a > (2 * np.pi):
+        a -= (2 * np.pi)
+    while a < 0:
+        a += (2 * np.pi)
+    return a
+
+
 def simplify_membrane_edge(layers):
     dilated_edge = cv2.dilate(layers['edge'], np.ones((7, 7), np.uint8), iterations=3)
     merged = dilated_edge & layers['membrane']
@@ -309,8 +317,8 @@ def simplify_membrane_edge(layers):
             # eq = lambda step: slope * (step - float(pt1[0])) + pt1[1]
 
             # let's create the two angles of travel (perp to current slope)
-            angle_one = angle + (np.pi / 2.0)
-            angle_two = angle - (np.pi / 2.0)
+            angle_one = fix_angle(angle + (np.pi / 2.0))
+            angle_two = fix_angle(angle - (np.pi / 2.0))
 
             # determine if length is being measured out or in as in negative x or y or
             back_count = 0

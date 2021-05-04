@@ -13,17 +13,9 @@ import math
 from libcpp.vector cimport vector
 from hitmiss cimport convolve_match_series
 from treescan cimport search_skeleton, Segment, Skeleton
+from types cimport bool_t, uint8_t, uint32_t, int32_t, uint64_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 cimport numpy as np
 np.import_array()
-
-
-# create the type definition
-ctypedef np.npy_bool NPBOOL_t
-ctypedef np.uint8_t NPUINT_t
-ctypedef np.int32_t NPINT32_t
-ctypedef np.uint32_t NPUINT32_t
-ctypedef np.longlong_t NPLONGLONG_t
-ctypedef np.float32_t NPFLOAT_t
 
 
 # create python wrapper classes for the skeleton and segments of skeletons
@@ -33,8 +25,8 @@ cdef class TreeSegment(object):
     cdef int num_points
     cdef long double distance
 
-    def __cinit__(self, np.ndarray points, int num_points, long double distance):
-        self.points = points
+    def __cinit__(self, np.int32_t[:, ::1] points, int num_points, long double distance):
+        self.points = np.asarray(points)
         self.num_points = num_points
         self.distance = distance
 
@@ -56,7 +48,7 @@ cdef class TreeSegment(object):
 
 cdef TreeSegment make_tree_segment(Segment &ref, int row_first):
     cdef int f_ind, s_ind, point_ind
-    cdef np.ndarray points
+    cdef np.int32_t[:, ::1] points
     cdef unsigned int num_points
     cdef long double distance
     cdef TreeSegment segment
@@ -65,21 +57,22 @@ cdef TreeSegment make_tree_segment(Segment &ref, int row_first):
     num_points = ref.points.size()
     distance = ref.distance
 
-    # specify first and second points
-    point_ind = <int> 0        
-    if row_first == <int> 1:
-        f_ind = <int> 0
-        s_ind = <int> 1
-    else:
-        f_ind = <int> 1
-        s_ind = <int> 0
-
     # reconstruct the numpy array point list (contiguous c array)
     points = np.zeros((num_points, 2), dtype=np.int32, order='c')
-    for point in ref.points:
-        points[point_ind, f_ind] = point.row
-        points[point_ind, s_ind] = point.col
-        point_ind += 1
+    with nogil:
+        # specify first and second points
+        point_ind = <int> 0        
+        if row_first == <int> 1:
+            f_ind = <int> 0
+            s_ind = <int> 1
+        else:
+            f_ind = <int> 1
+            s_ind = <int> 0
+
+        for point in ref.points:
+            points[point_ind, f_ind] = point.row
+            points[point_ind, s_ind] = point.col
+            point_ind += 1
 
     # make the python object (which has some struct structure underneath which is why need to call _set)
     segment = TreeSegment(points, num_points, distance)
@@ -88,7 +81,7 @@ cdef TreeSegment make_tree_segment(Segment &ref, int row_first):
 
 
 cdef class TreeSkeleton(object):
-    cdef Skeleton skeleton
+    cdef Skeleton *skeleton
     cdef list segments
     cdef set branches
     cdef set end_points
@@ -100,7 +93,7 @@ cdef class TreeSkeleton(object):
         self.end_points = end_points
         self.row_first = row_first
 
-    cdef void _set(self, Skeleton &ref):
+    cdef void _set(self, Skeleton *ref):
         self.skeleton = ref
 
     def get_segments(self):
@@ -109,16 +102,25 @@ cdef class TreeSkeleton(object):
     def get_branches(self):
         return self.branches
 
-    def get_end_points(self):
+    def get_end_points(self): 
         return self.end_points
 
+    cpdef uint64_t get_c_obj_pointer(self) except *:
+        return <uint64_t> self.skeleton
+
     def get_diameter(self):
-        cdef Segment seg = self.skeleton.get_diameter()
-        cdef int rf = self.row_first
+        cdef Segment seg
+        cdef int rf
+        with nogil:
+            seg = self.skeleton.get_diameter()
+            rf = self.row_first
         return make_tree_segment(seg, rf)
 
+    def __dealloc__(self):
+        del self.skeleton  # let's delete the skeleton backend object
 
-cdef TreeSkeleton make_tree_skeleton(Skeleton ref, int row_first):
+
+cdef TreeSkeleton make_tree_skeleton(Skeleton *ref, int row_first):
     cdef list segments
     cdef set branches
     cdef set end_points
@@ -147,6 +149,7 @@ cdef TreeSkeleton make_tree_skeleton(Skeleton ref, int row_first):
     # make the tree skeleton and update underneath struct structure
     skeleton = TreeSkeleton(segments, branches, end_points, row_first)
     skeleton._set(ref)
+
     return skeleton
 
 
@@ -158,10 +161,12 @@ cpdef list search_image_skeleton(np.ndarray[NPUINT_t, ndim=2, mode='c'] image, n
         raise ValueError('Cannot determine skeleton without endpoints or without image')
 
     # compute the c++ optimized results
-    cdef vector[Skeleton] skeletons
+    cdef vector[Skeleton*] skeletons
     cdef unsigned int[:, ::1] end_data
     end_data = np.clip(endpoints, a_min=0, a_max=None).astype(np.uint32)
-    skeletons = search_skeleton(&image[0, 0], &end_data[0, 0], <int> image.shape[0], <int> image.shape[1], <int> endpoints.shape[0])
+
+    with nogil:
+        skeletons = search_skeleton(&image[0, 0], &end_data[0, 0], <int> image.shape[0], <int> image.shape[1], <int> endpoints.shape[0])
 
     # reconstruct results into python objects
     cdef list results = []

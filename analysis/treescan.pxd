@@ -1,5 +1,6 @@
 from libcpp.vector cimport vector
 from libcpp.unordered_set cimport unordered_set
+from types cimport bool_t, uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 cimport numpy as np
 
 
@@ -7,16 +8,15 @@ cdef extern from 'src/treescan.cpp':
     pass
 
 
-# define types (ctypedefs are iffy)
-ctypedef unsigned char uint8_t
-ctypedef unsigned int uint32_t
-ctypedef signed int int32_t
-
-
 cdef extern from 'include/compare.hpp' namespace 'cmp':
     cdef struct location:
         int32_t row
         int32_t col
+    
+    cdef struct location_pair:
+        location one
+        location two
+        long double distance
 
 
 cdef extern from 'include/treescan.hpp' namespace 'skeleton':
@@ -26,6 +26,7 @@ cdef extern from 'include/treescan.hpp' namespace 'skeleton':
         vector[location] points
         unordered_set[location] ignore_points
         long double distance
+        bool_t is_empty()
     
     cdef cppclass Skeleton:
         Skeleton() except +
@@ -34,6 +35,7 @@ cdef extern from 'include/treescan.hpp' namespace 'skeleton':
         unordered_set[location] end_points
         unsigned int num_segments
         void add_segment(const Segment)
-        Segment get_diameter()
+        Segment get_diameter() nogil
+        bool_t is_empty()
     
-    vector[Skeleton] search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int end_points)
+    vector[Skeleton*] search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols, const int end_points) nogil
