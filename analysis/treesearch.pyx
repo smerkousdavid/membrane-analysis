@@ -11,9 +11,9 @@ import math
 
 # cython specific
 from libcpp.vector cimport vector
-from hitmiss cimport convolve_match_series
-from treescan cimport search_skeleton, Segment, Skeleton
-from types cimport bool_t, uint8_t, uint32_t, int32_t, uint64_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
+from analysis.hitmiss cimport convolve_match_series
+from analysis.treescan cimport search_skeleton, Segment, Skeleton
+from analysis.types cimport bool_t, uint8_t, uint32_t, int32_t, uint64_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 cimport numpy as np
 np.import_array()
 

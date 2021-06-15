@@ -15,16 +15,13 @@ SPECIAL = {
         'compile': ['-std=c++14']  # add extra compile args to this file
     },
     'hitmiss': {
-        'compile': ['-std=c++14']  # add extra compile args to this file
+        'compile': ['-std=c++14']
+    },
+    'statistics': {
+        'compile': ['-std=c++14']
     }
 }
 
-""" Let's worry about mahotas later
-    'skeleton': {  # for mahotas to compile we need the two required morph and filters (this defines the optimized hit-or-miss algorithms)
-        'sources': ['./mahotas/mahotas/_filters.cpp'],
-        'includes': ['./mahotas/mahotas', './mahotas/features']
-    }
-"""
 
 def scandir(dir, files=[]):
     for file in os.listdir(dir):
@@ -59,11 +56,11 @@ def make_ext(ext):
 # this is just for the cython files and is not designed to actually build the all-in-one application yet
 setup(
     name='Membrane Analysis',
-    packages=['analysis'],  # ex 'tools'
+    packages=['analysis'],
     ext_modules=cythonize(
         [make_ext(ext) for ext in scandir('.')],
         language_level=3,
-        nthreads=5# ,
+        # nthreads=1# ,
         # gdb_debug=True
     )
 )

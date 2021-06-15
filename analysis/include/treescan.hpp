@@ -21,6 +21,7 @@ namespace skeleton {
             Segment();
             Segment(LOC_t initial_loc);
             ~Segment();
+            int temporary_id;
             uint32_t num_points;
             long double distance;
             unsigned long id;
@@ -71,6 +72,7 @@ namespace skeleton {
     };
 
     long double loc_distance(const LOC_t p1, const LOC_t p2);
+    double low_loc_distance(const LOC_t p1, const LOC_t p2);
     std::vector<Skeleton*> search_skeleton(const uint8_t* image, const uint32_t* endpoints, const int rows, const int cols,  const int num_endpoints);
 }
 

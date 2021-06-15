@@ -8,17 +8,23 @@ from analysis.skeleton import fast_skeletonize
 # from branches import detect_end_points as old_end_points, detect_branch_points as old_branch_points
 from analysis.hitmiss import old_get_end_points, get_image_convolve, get_branch_point_matches, old_scan_for_end, scan_for_end, scan_for_branch
 from analysis.treesearch import search_image_skeleton
-from analysis.membrane import skeletons_to_membranes
+from analysis.membrane import skeletons_to_membranes, measure_points_along_membrane
+from PIL import Image
 import timeit
 import random
 import tifffile
 import time
 import cv2
+from multiprocessing import freeze_support
+
+# freeze support
+freeze_support()
 
 # Generate the data
 #blobs = data.binary_blobs(200, blob_size_fraction=.2,
 #                          volume_fraction=.5) #, seed=1)
-IMAGE = '/home/smerkous/Downloads/sample2.png' #'C:\\Users\\smerk\\Downloads\\test.png'
+# IMAGE = '/home/smerkous/Downloads/sample2.png' #'C:\\Users\\smerk\\Downloads\\test.png'
+IMAGE = 'C:\\Users\\smerk\\Downloads\\test3.png'
 blobs = cv2.imread(IMAGE, cv2.IMREAD_GRAYSCALE)  # 'C:\\Users\\smerk\\UW\\Najafian Lab - Lab Najafian\\Foot Process Workspace\\out_class\\08_00816.tiff')[0]
 blobs = np.ascontiguousarray(blobs)
 print(blobs.shape)
@@ -26,6 +32,7 @@ print(blobs.shape)
 def random_color():
     return (int(random.uniform(10, 255)), int(random.uniform(10, 255)), int(random.uniform(20, 255)))
 
+start = time.time()
 blob_uint = (blobs / 255).astype(np.uint8)
 skeleton = fast_skeletonize(blob_uint)
 print('endpoints...')
@@ -48,7 +55,6 @@ data = search_image_skeleton(skeleton, end_points, row_first=False)
 #data = test_search(skeleton, end_points)
 nimg = np.zeros((skeleton.shape[0], skeleton.shape[1], 3), dtype=np.uint8)
 membranes = skeletons_to_membranes(data)
-
 
 sizes = []
 diams = []
@@ -86,6 +92,8 @@ for skel in data:
 
     for end in skel.get_end_points():
         cv2.circle(nimg, end, 3, (255, 255, 255), 1)
+print('end time', time.time() - start)
+
 
 
 blob_yes = cv2.cvtColor(blob_uint * 255, cv2.COLOR_GRAY2BGR)
@@ -93,23 +101,34 @@ for ind, mem in enumerate(membranes):
     if mem:
         print('got it')
         p = mem.get_points()
-        widths = mem.get_membrane_widths(blob_uint, 0.01, 3)
+        s = time.time()
+        widths = mem.get_membrane_widths(
+            image=blob_uint,  # mask of the membrane
+            secondary=None,  # mask to identify which part of the membrane is the inside or the outside
+            density=0.45,  # % of membrane p oints to scan width for
+            min_measure=3,  # min amount of measures for a single membrane (this won't be used if the membrane is less than N-px)
+            measure_padding=20,  #  between each measurement how many points to go left/right to get an average tangent angle
+            secondary_is_inner=True,  # is the secondary mask the "inner" measurement
+            edge_scan_density=0.1,  # % of image dimension that we can use to scan the secondary mask from the edge of the image mask
+            remove_overlap_check=1.0,  # % of membrane to scan back for possible overlaps (0-1) use 0.0 to disable overlap checks, and 1.0 to check all of them
+            max_measure_diff=1.2  # max difference between the measurements from the center line of the skeleton to the edge (if one measure in or out is greater than this ratio then exclude it) use 0.0 to disable this feature
+        )
+        print('done', time.time() - s)
 
         if len(p) > 0:
-            print('points! compare', sizes[ind], len(p))
-            print('the same', np.all(diams[ind] == p))
+            # print('points! compare', sizes[ind], len(p))
+            # print('the same', np.all(diams[ind] == p))
             points = p # mem.get_points()
             # print('DIAMETER distance', d.get_distance(), 'check', cv2.arcLength(points, False))
             points = np.append(points, points[::-1], axis=0)
             cv2.drawContours(blob_yes, [points], -1, (0, 0, 255), 2)
             print('done')
         
-        """
-        print('widths', widths)
+        # print('widths', widths)
         for width in widths:
-            print(width.get_distance())
-            cv2.line(blob_yes, width.get_first_xy(), width.get_second_xy(), (255, 255, 0), 1)
-        """
+            # print(width.get_distance())
+            # cv2.line(blob_yes, width.get_inner_xy(), width.get_outer_xy(), (0, 255, 0), 1)
+            pass
 
     else:
         print('empty')
@@ -120,6 +139,49 @@ for ind, mem in enumerate(membranes):
 
 img = nimg
 
+# get the measurements
+measure_points = np.array([
+    [142, 593],
+    [65, 475],
+    [570, 530]
+], dtype=np.uint32)
+
+measures = measure_points_along_membrane(
+    image=blob_uint,
+    membranes=membranes,
+    points=measure_points,
+    max_px_from_membrane=30,
+    density=0.1,
+    min_measure=3,
+    measure_padding=20,
+    max_measure_diff=1.2
+)
+
+for mem_ind, mes in enumerate(measures):
+    #if not mes.is_empty:
+    #    print('not empty!')
+    paired = mes.get_point_membrane_pairs()
+    # print()
+    rrange = mes.get_membrane_ranges()
+    print(mes.get_stats())
+    
+    p = membranes[mem_ind].get_points()
+
+    if len(paired) > 0:
+        for r_ind, pair in enumerate(paired):
+            l1, l2 = pair
+            print(l1, l2)
+            cv2.line(blob_yes, tuple(l1), tuple(l2), (255 * r_ind, 100, 255), 3)
+
+        for r_ind, rr in enumerate(rrange):
+            start, end = int(rr[0]), int(rr[1])
+            data = p[start:end]
+            points = np.append(data, data[::-1], axis=0)
+            print(r_ind)
+            cv2.drawContours(blob_yes, [points], -1, (0, 255 * r_ind, 0), 2)
+
+
+print('MEASURES', measures)
 # img = cv2.resize(img, (600, 600))
 # cv2.circle(img, (46, 53), 3, (255, 255, 255), 1)
 # img[53, 46] = (255, 255, 255)
@@ -128,8 +190,14 @@ cv2.imshow('orig', img)
 cv2.imshow('skel',  cv2.resize(skeleton * 255, (1000, 1000), interpolation=cv2.INTER_NEAREST))
 cv2.imshow('ok', cv2.resize(img, (1000, 1000), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_LANCZOS4))
 cv2.imshow('blob', blob_yes)
-# cv2.imshow('skel', cv2.resize(skeleton * 255, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_NEAREST))
+# plt_image = cv2.cvtColor(blob_yes, cv2.COLOR_BGR2RGB)
+# imgplot = plt.imshow(plt_image)
+# ok = Image.fromarray(blob_yes)
+# ok.show()
+
 cv2.waitKey(0)
+# cv2.imshow('skel', cv2.resize(skeleton * 255, (900, 900), interpolation=cv2.INTER_NEAREST)) # cv2.INTER_NEAREST))
+# cv2.waitKey(0)
 # skeleton_search(skeleton, detect_end_points(skeleton))
 """
 skeleton_ui = skeleton.astype(np.uint8)

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<title>%%IMAGE_NAME%%</title>
+
+		<style type="text/css">
+			.layer {
+				height: auto;
+			}
+
+			fieldset {
+				border: 0;
+			}
+
+			body {
+				padding: 0;
+				margin: 0;
+				font-family:Arial, Helvetica, sans-serif;
+				background-color: #f3ecec;
+			}
+
+			.heading * {
+				margin: 0;
+				/* background-color: #344648; */
+				max-height: 20px;
+				font-size: 18px;
+				color: rgb(97, 97, 97);
+			}
+
+			.heading > p {
+				padding: 20px;
+			}
+
+			.control-text {
+				text-align: center;
+				font-size: 18px;
+			}
+
+			#control-image-alphas {
+				text-align: center;
+			}
+
+			#main {
+				/* display: inline; */
+				position: relative;
+				min-width: 100%;
+			}
+
+			#controls {
+				display: flex;
+				flex-direction: column;
+				float: left;
+				width: 200px;
+				/* background-color: #7d8e957c; */
+				height: 200px;
+			}
+
+			#controls * {
+				align-self: center;
+			}
+
+			#content {
+				overflow: auto;
+			}
+
+			#data-canvas {
+				/* position: absolute; */
+				z-index: 1;
+				left: 0;
+				top: 100px;
+			}
+		</style>
+		<script type="application/javascript">
+			(() => {
+				// consts (these are replaced with the python script)
+				const IMAGE_WIDTH = parseInt('%%IMAGE_WIDTH%%');
+				const IMAGE_HEIGHT = parseInt('%%IMAGE_HEIGHT%%');
+				const ALL_DATA = JSON.parse('%%ALL_DATA%%');
+				let IMAGE_LAYERS = JSON.parse('%%IMAGE_LAYERS%%');
+
+				// const IMAGE_WIDTH = 799;
+				// const IMAGE_HEIGHT = 533;
+				// const ALL_DATA = {
+
+				// };
+				// let IMAGE_LAYERS = [{
+				// 	id: 'layer-1',
+				// 	name: 'Background Layer',
+				// 	image: true,
+				// 	show: true,
+				//  	data: 'data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+				// 	call: null,
+				// 	alpha: 1.0
+				// }, {
+				// 	id: 'layer-2',
+				// 	name: 'Line Layer',
+				// 	image: false,
+				// 	show: true,
+				// 	data: '(ctx, data) => drawCircle(ctx, [50, 50], 30, f="red")',
+				// 	alpha: 0.5
+				// }];
+
+				// globals
+				let scaling = 1.0; // image scaling
+
+				// compressed polyline function d = context, 
+				function drawPolyLine(ctx, poly, close, s='black', w=1, c='round') {
+					if (poly.length <= 1) {
+						return;
+					}
+
+					// set stroke params
+					if(s) ctx.strokeStyle = s;
+					if(w) ctx.lineWidth = w;
+					if(c) ctx.lineCap = c;
+
+					// move to first point
+					ctx.beginPath();
+					ctx.moveTo(poly[0][0], poly[0][1]);
+					
+					// iter through rest of points
+					for(let i = 1; i < poly.length; i++) {
+						ctx.lineTo(poly[i][0], poly[i][1]);
+					}
+
+					if (close) ctx.closePath();
+					ctx.stroke();
+				}
+
+				function drawRect(ctx, x, y, width, height, f='black') {
+					// set stroke params
+					if(f) ctx.fillStyle = f;
+
+					// draw line
+					ctx.beginPath();
+					ctx.rect(x, y, width, height);
+					ctx.fill();
+				}
+
+				function drawLine(ctx, begin, end, s='black', w=1, c='round') {
+					// set stroke params
+					if(s) ctx.strokeStyle = s;
+					if(w) ctx.lineWidth = w;
+					if(c) ctx.lineCap = c;
+
+					// draw line
+					ctx.beginPath();
+					ctx.moveTo(begin[0], begin[1]);
+					ctx.lineTo(end[0], end[1]);
+					ctx.stroke();
+				}
+
+				function drawCircle(ctx, center, radius, f='black') {
+					// set stroke params
+					if(f) ctx.fillStyle = f;
+
+					// draw line
+					ctx.beginPath();
+					ctx.arc(center[0], center[1], radius, 0, 2 * Math.PI, false);
+					ctx.fill();
+					// ctx.moveTo(begin[0], begin[1]);
+					// ctx.lineTo(end[0], end[1]);
+					// ctx.stroke();
+				}
+
+				function drawText(ctx, text, x, y, s='black', font = '18px Arial') {
+					ctx.fillStyle = s;
+					ctx.font = font;
+					ctx.fillText(text, x, y);
+				}
+
+				function onDrawData() {
+					let canvas = document.getElementById('data-canvas');
+
+					// make sure canvas is valid
+					if (canvas.getContext) {
+						// set canvas dimensions to represent total scaling
+						canvas.width = (scaling * IMAGE_WIDTH).toString();
+						canvas.height = (scaling * IMAGE_HEIGHT).toString();
+
+						let ctx = canvas.getContext('2d');
+
+						// clear the canvas
+						ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+						// set the scaling factor
+						ctx.scale(scaling, scaling);
+
+						// redraw all of the layers
+						for (let i = 0; i < IMAGE_LAYERS.length; i++) {
+							let imData = IMAGE_LAYERS[i];
+
+							// continue drawing if data is available
+							if (imData.data && imData.show) {
+								if (imData.alpha !== undefined && imData.alpha !== null) {
+									ctx.globalAlpha = imData.alpha; // draw with specified alpha
+								} else {
+									ctx.globalAlpha = 1.0; // render all
+								}
+
+								if (imData.image) {
+									ctx.drawImage(imData.data, 0, 0);
+								} else {
+									imData.data(ctx, ALL_DATA);
+								}
+							}
+						}
+					}
+				}
+
+				function onResize() {
+					let zoom = document.getElementById('zoom');
+					
+					// calc new scaling
+					scaling = (zoom.value / 50.0);
+
+					onDrawData();
+				}
+
+				function saveFile(fileName, urlFile){
+					// reference: https://stackoverflow.com/questions/11336663/how-to-make-a-browser-display-a-save-as-dialog-so-the-user-can-save-the-conten
+					let a = document.createElement('a');
+					a.style = "display: none";
+					document.body.appendChild(a);
+					a.href = urlFile;
+					a.download = fileName;
+					a.click();
+					a.remove();
+				}
+
+				function onLoad() {
+					console.log('loaded');
+					// create the visibility data
+					let layerControl = document.getElementById('control-image-layers');
+					let alphaControl = document.getElementById('control-image-alphas');
+					let hiddenImageData = document.getElementById('image-data-layers');
+					for (let i = 0; i < IMAGE_LAYERS.length; i++) {
+						let imData = IMAGE_LAYERS[i];
+						let layerButton = document.createElement('input');
+						layerButton.type = 'checkbox';
+						layerButton.value = imData.name;
+						layerButton.checked = imData.show;
+						
+						let layerButtonLabel = document.createElement('label');
+						layerButtonLabel.innerText = imData.name;
+
+						let layerAlphaLabel = document.createElement('label');
+						layerAlphaLabel.innerText = imData.name;
+
+						// if it's an image create the image id layer (to store the data in the DOM)
+						if (imData.image) {
+							let im = new Image();
+							im.id = imData.id;
+							im.onload = onDrawData;
+							if (imData.data) {
+								im.src = imData.data;
+							} else {
+								console.log('failed to load image data for', i);
+							}
+
+							// update the reference data to be the object itself
+							IMAGE_LAYERS[i].data = im;
+
+							hiddenImageData.appendChild(im);
+						} else if (imData.data) {
+							IMAGE_LAYERS[i].data = eval(imData.data); // convert javascript string into function
+						}
+
+						layerButton.oninput = function() {
+							IMAGE_LAYERS[i].show = this.checked;
+							onDrawData();
+						}
+
+						let alphaSlider = document.createElement('input');
+						alphaSlider.type = 'range';
+						alphaSlider.min = 0;
+						alphaSlider.max = 100;
+						alphaSlider.value = (imData.alpha || 1.0) * 100;
+
+						alphaSlider.oninput = function() {
+							IMAGE_LAYERS[i].alpha = (parseInt(this.value) / 100.0);
+							onDrawData();
+						}
+
+						layerControl.appendChild(layerButton);
+						layerControl.appendChild(layerButtonLabel);
+						layerControl.appendChild(document.createElement('br'));
+						alphaControl.appendChild(layerAlphaLabel);
+						alphaControl.appendChild(alphaSlider);
+						alphaControl.appendChild(document.createElement('br'));
+					}
+
+					// handle a resize event
+					let zoom = document.getElementById('zoom');
+					zoom.oninput = onResize;
+
+					// draw everything
+					onDrawData();
+
+					// handle the save event
+					let saveButton = document.getElementById('save-image');
+					saveButton.onclick = () => {
+						let dataUrl = document.getElementById('data-canvas').toDataURL();
+						saveFile('results.png', dataUrl);
+					}
+				}
+
+				// run everything on load
+				window.onload = onLoad;
+			})();
+		</script>
+	</head>
+
+	<body>
+		<div class="heading">
+			<p>%%IMAGE_NAME%%</p>
+		</div>
+		<div class="body">
+			<div id="main">
+				<div id="controls">
+					<p class="control-text">Controls</p>
+					
+					<p class="control-label">Zoom</p>
+					<input id="zoom" type="range" min="5" max="250" value="50"></input>
+					
+					<p class="control-label">Image Layers</p>
+					<fieldset id="control-image-layers"></fieldset>
+					
+					<p class="control-label">Image Alphas</p>
+					<fieldset id="control-image-alphas"></fieldset>
+
+					<button id="save-image">Save Image As</button>
+				</div>
+				<div id="content">
+					<canvas id="data-canvas" width="150" height="150"></canvas>
+				</div>
+			</div>
+		</div>
+		<div id="image-data-layers" hidden></div>
+	</body>
+</html>

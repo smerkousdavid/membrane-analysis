@@ -6,15 +6,15 @@
 import numpy as np
 cimport numpy as np
 from libcpp.vector cimport vector
-from hitmiss cimport convolve_match_image, location
-from types cimport uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
+from analysis.hitmiss cimport convolve_match_image, location
+from analysis.types cimport uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 np.import_array()
 
 
 # define simple coordinate structure for images
 cdef struct s_Coord:
-    Py_ssize_t x;
-    Py_ssize_t y;
+    Py_ssize_t x
+    Py_ssize_t y
 
 
 # define struct
@@ -144,7 +144,7 @@ cdef np.ndarray BRANCH_POINTS = np.array(
 cdef Py_ssize_t NUM_END_POINTS = END_POINTS.shape[0]
 cdef Py_ssize_t NUM_BRANCH_POINTS = BRANCH_POINTS.shape[0]
 
-
+''' Old implementation for reference. Please look at hitmiss.cpp in the src folder
 cdef int scan_for_px(const NPBOOL_t[:, ::1] image, const Py_ssize_t rows, const Py_ssize_t cols, Coord* start_loc, Coord* loc, NPBOOL_t search):
     cdef Py_ssize_t row
     cdef Py_ssize_t col
@@ -198,7 +198,6 @@ cpdef int convolve_match_series(const NPBOOL_t[:, ::1] mat, const NPUINT_t[:, :,
 
 
 cdef list scan_for_edge_end(const NPBOOL_t[:, ::1] image, const Py_ssize_t rows, const Py_ssize_t cols, Py_ssize_t start, Py_ssize_t end, const int left, const int right, const int top, const int bottom):
-    '''TEST'''
     cdef Py_ssize_t it
     cdef Py_ssize_t last_row, last_col, second_last_row, second_last_col
     last_row, last_col, second_last_row, second_last_col = rows - 1, cols - 1, rows - 2, cols - 2
@@ -466,7 +465,7 @@ cpdef np.ndarray[NPINT32_t, ndim=2] old_scan_for_end(NPBOOL_t[:, ::1] image, con
         ret_data[ind][1] = coord['x']
 
     return ret_data
-
+'''
 
 cdef np.ndarray[NPINT32_t, ndim=2] get_c_image_convolve(uint8_t[:, ::1] &image, uint8_t[:, :, ::1] &matches, uint8_t row_first=1, uint8_t scan_edge=0):
     # get results
@@ -482,7 +481,8 @@ cdef np.ndarray[NPINT32_t, ndim=2] get_c_image_convolve(uint8_t[:, ::1] &image, 
     match_size = matches.shape[1]
 
     # run c++ optimized image function
-    data = convolve_match_image(&image[0][0], &matches[0][0][0], rows, cols, num_matches, match_size, scan_edge)
+    with nogil:
+        data = convolve_match_image(&image[0][0], &matches[0][0][0], rows, cols, num_matches, match_size, scan_edge)
 
     # convert from c++ vector structure into a list of points either (row, col) or (col, row) aka x, y
     res_size = data.size()

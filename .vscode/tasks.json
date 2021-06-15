@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "${workspaceFolder}/build.sh",
       "windows":{
-          "command": "${workspaceFolder}/build.cmd"
+          "command": "${workspaceFolder}/build.bat"
       },
       "presentation": {
           "echo": true,

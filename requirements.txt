@@ -1,3 +1,7 @@
-numpy==1.20.2
-opencv-python==4.5.1
+numpy
+opencv-python
 scikit-image==0.18.1
+cython
+htmlmin
+jsmin
+rcssmin

@@ -7,7 +7,7 @@
 # numpy
 import numpy as np
 cimport numpy as np
-from skeleton cimport NPUINT_t
+from analysis.skeleton cimport NPUINT_t
 np.import_array()
 
 

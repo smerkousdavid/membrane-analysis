@@ -1,11 +1,17 @@
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 
 #ifndef COMPARE_H
 #define COMPARE_H
 
 
 namespace cmp {
+    bool is_within(double val1, double val2, double error) {
+        const double diff = (val1 > val2) ? val1 - val2 : val2 - val1;
+        return diff <= error;
+    }
+
     struct location {
         int32_t row;
         int32_t col;

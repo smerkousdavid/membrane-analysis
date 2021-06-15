@@ -114,6 +114,12 @@ namespace skeleton {
         const long double c_diff = (long double) p1.col - (long double) p2.col;
         return std::sqrt((r_diff * r_diff) + (c_diff * c_diff));
     }
+
+    double low_loc_distance(const LOC_t p1, const LOC_t p2) {
+        const double r_diff = (double) p1.row - (double) p2.row;
+        const double c_diff = (double) p1.col - (double) p2.col;
+        return (double) std::sqrt((r_diff * r_diff) + (c_diff * c_diff));
+    }
     
     /* SEGMENT START */
     Segment::Segment() {
@@ -391,16 +397,16 @@ namespace skeleton {
         }
 
         // let's find which sub-path is the longest path
-        Segment longest_seg = scan; // use current scan as the "longest" path
+        Segment *longest_seg = &scan; // use current scan as the "longest" path
         for(std::vector<std::pair<Segment, LOC_SET_t>>::iterator pair_it = follow_paths.begin(); pair_it != follow_paths.end(); ++pair_it) {
-            if (pair_it->first.get_distance() > longest_seg.get_distance()) {
-                longest_seg = pair_it->first; // copy longest segment
+            if (pair_it->first.get_distance() > longest_seg->get_distance()) {
+                longest_seg = &pair_it->first; // copy longest segment
                 // ends_used
             }
         }
 
         // copy to full report
-        longest_seg.copy_to(full);
+        longest_seg->copy_to(full);
 
         return true; // we've finished the path (used just in case our seg scans of the skeletons are all empty)
     }
@@ -440,18 +446,32 @@ namespace skeleton {
 
             // now that we have the ends matched with their segments let's follow paths
             LOC_SET_t ends_used;
+            Segment *longest_path;
+            bool found = false;
+
             for(std::vector<std::pair<LOC_t, Segment>>::iterator pair_it = end_follow.begin(); pair_it != end_follow.end(); ++pair_it) {
                 ends_used.clear(); // clear results
                 
-                // std::cout << "PAIR!" << std::endl;
-
-                Segment follow_path;
-                if (this->follow_long_path(pair_it->first, pair_it->second, &follow_path, ends_used)) {  // make sure we have a successful scan
-                    if (follow_path.get_distance() > diameter.get_distance()) {
-                        this->diameter = follow_path;  // found longest path
+                Segment *follow_path = new Segment();
+                found = false;
+                if (this->follow_long_path(pair_it->first, pair_it->second, follow_path, ends_used)) {  // make sure we have a successful scan
+                    if (follow_path->get_distance() > diameter.get_distance()) {
+                        longest_path = follow_path;  // found longest path
+                        found = true;
                     }
                 }
+
+                // copy to diameter if longest was found
+                if (found) {
+                    this->diameter = *longest_path;
+                }
+
+                // delete follow path from heap
+                delete follow_path;
             }
+
+        } else {
+            return Segment(); // return empty segment
         }
 
         // make sure it's no longer dirty so use the cached version if possible

@@ -1,6 +1,6 @@
 from libcpp.vector cimport vector
 from libcpp.unordered_set cimport unordered_set
-from types cimport bool_t, uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
+from analysis.types cimport bool_t, uint8_t, uint32_t, int32_t, NPBOOL_t, NPUINT_t, NPINT32_t, NPUINT32_t, NPLONGLONG_t, NPFLOAT_t
 cimport numpy as np
 
 

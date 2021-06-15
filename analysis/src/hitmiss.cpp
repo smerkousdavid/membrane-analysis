@@ -2,6 +2,7 @@
 #include <cmath>
 #include <vector>
 #include <iostream>
+#include <algorithm>
 #include "../include/hitmiss.hpp"
 
 
@@ -55,6 +56,70 @@ namespace hitmiss {
 
         // all goto statements were hit (so no matches)
         return HIT_MISS;
+    }
+
+    const bool loc_on_segment(cmp::location p, cmp::location q, cmp::location r) {
+        /* following 3 functions were modified from a geeksforgeeks article for line intersection
+         * Given three colinear points p, q, r, the function checks if
+         * point q lies on line segment 'pr'
+         */
+        if (q.col <= std::max(p.col, r.col) && q.col >= std::min(p.col, r.col) && q.row <= std::max(p.row, r.row) && q.row >= std::min(p.row, r.row)) {
+            return true;
+        }
+        return false;
+    }
+
+    const uint8_t loc_orientation(cmp::location p, cmp::location q, cmp::location r) {
+        /* To find orientation of ordered triplet (p, q, r).
+         * The function returns following values
+         * 0 --> p, q and r are colinear
+         * 1 --> Clockwise
+         * 2 --> Counterclockwise
+         * See https://www.geeksforgeeks.org/orientation-3-ordered-points/
+         * for details of below formula.
+         */
+        const int32_t val = (q.row - p.row) * (r.col - q.col) - (q.col - p.col) * (r.row - q.row);
+
+        // colinear
+        if (val == 0) {
+            return 0U;
+        }
+    
+        // clock or counterclock wise
+        return (val > 0) ? 1U : 2U;
+    }
+  
+    const bool do_loc_interest(cmp::location p1, cmp::location q1, cmp::location p2, cmp::location q2) {
+        /* The main function that returns true if line segment 'p1q1'
+         * and 'p2q2' intersect.
+         */
+
+        // general cases get the orientations
+        const uint8_t o1 = loc_orientation(p1, q1, p2);
+        const uint8_t o2 = loc_orientation(p1, q1, q2);
+        const uint8_t o3 = loc_orientation(p2, q2, p1);
+        const uint8_t o4 = loc_orientation(p2, q2, q1);
+    
+        // general case (if orientations don't match then they intersect)
+        if (o1 != o2 && o3 != o4) {
+            return true;
+        }
+    
+        // special Cases
+        // p1, q1 and p2 are colinear and p2 lies on segment p1q1
+        if (o1 == 0 && loc_on_segment(p1, p2, q1)) return true;
+    
+        // p1, q1 and q2 are colinear and q2 lies on segment p1q1
+        if (o2 == 0 && loc_on_segment(p1, q2, q1)) return true;
+    
+        // p2, q2 and p1 are colinear and p1 lies on segment p2q2
+        if (o3 == 0 && loc_on_segment(p2, p1, q2)) return true;
+    
+        // p2, q2 and q1 are colinear and q1 lies on segment p2q2
+        if (o4 == 0 && loc_on_segment(p2, q1, q2)) return true;
+    
+        // the lines don't interest
+        return false;
     }
 
     // @REMEMBER that match_size must be an odd number
@@ -190,5 +255,70 @@ namespace hitmiss {
         }
 
         return endpoints;
+    }
+
+    cmp::location rad_to_cartesian(cmp::location start, double radians, double radius) {
+        start.col = start.col + static_cast<int32_t>(std::round(radius * std::cos(radians)));
+        start.row = start.row - static_cast<int32_t>(std::round(radius * std::sin(radians)));
+        return start;
+    }
+
+    std::pair<cmp::location, cmp::location> rad_to_center_cartesian(cmp::location center, double radians, double radius) {
+        const int32_t diff_x = static_cast<int32_t>(std::round(radius * std::cos(radians)));
+        const int32_t diff_y = static_cast<int32_t>(std::round(radius * std::sin(radians)));
+
+        cmp::location start, end;
+        start.col = center.col - diff_x;
+        start.row = center.row + diff_y;
+        end.col = center.col + diff_x;
+        end.row = center.row - diff_y;
+        return std::pair<cmp::location, cmp::location>(start, end);
+    }
+
+    std::vector<cmp::location> locations_between_points(cmp::location start, cmp::location end) {
+        if (start == end) {  // there aren't any intermediate points
+            return std::vector<cmp::location>();
+        }
+
+        // use Bresenham's algorithm to place discrete locations between the two points (https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm#Algorithm)
+        int32_t dx = abs(end.col - start.col);
+        int32_t dy = abs(start.row - end.row);
+        int32_t temp;
+        const int32_t sx = (end.col >= start.col) ? 1.0 : -1.0;
+        const int32_t sy = (end.row >= start.row) ? 1.0 : -1.0; 
+        bool swap = false;
+
+        // if dy has greater range, then swap results
+        if (dy > dx) {
+            temp = dx;
+            dx = dy;
+            dy = temp;
+            swap = true;
+        }
+
+        double error = 2*dy - dx;
+        cmp::location cur = start;
+        std::vector<cmp::location> locs;
+        for (int i = 1; i < dx; i++) {
+            if (error >= 0) {
+                if (swap) {
+                    cur.col = cur.col + sx;
+                } else {
+                    cur.row = cur.row + sy;
+                    error -= 2*dx;
+                }
+            }
+            if (swap) {
+                cur.row = cur.row + sy;
+            } else {
+                cur.col = cur.col + sx;
+                error += 2*dy;
+            }
+
+            // add the point
+            locs.push_back(cur);
+        }
+        
+        return locs;
     }
 }
