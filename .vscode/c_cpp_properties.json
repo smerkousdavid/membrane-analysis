@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/analysis/include",
+                "${workspaceFolder}/analysis/src"
+            ],
+            "defines": [],
+            "compilerPath": "/home/smerkous/.conda/envs/membrane-analysis/bin/x86_64-conda_cos6-linux-gnu-cc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/analysis/include",
+                "${workspaceFolder}/analysis/src",
+                "C:\\Anaconda3\\lib\\site-packages\\numpy\\core\\include"
+            ],
+            "defines": [],
+            "compilerPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.28.29910\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "version": 4
+}

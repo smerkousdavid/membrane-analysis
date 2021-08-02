@@ -1,0 +1,8 @@
+numpy
+opencv-python
+scikit-image==0.18.1
+cython
+htmlmin
+jsmin
+rcssmin
+wxpython==4.1.1

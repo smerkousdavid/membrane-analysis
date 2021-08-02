@@ -1,3 +1,17 @@
+# custom ignores
+test_imgs/
+mahotas/
+structure/analysis/*.c
+structure/analysis/*.cpp
+Profile.prof
+profile.svg
+*.xlsx
+*.hdf5
+*.h5
+*.svg
+test.html
+
+# from github python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
