@@ -1,8 +1,8 @@
 # custom ignores
 test_imgs/
 mahotas/
-analysis/*.c
-analysis/*.cpp
+structure/analysis/*.c
+structure/analysis/*.cpp
 Profile.prof
 profile.svg
 *.xlsx

@@ -1,5 +1,5 @@
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup, find_packages
+from setuptools.extension import Extension
 from Cython.Build import cythonize
 from Cython.Compiler import Options
 
@@ -8,6 +8,7 @@ import os
 
 # name the module
 MODULE = 'analysis'
+LANG_LEVEL = 3
 
 # special cases
 SPECIAL = {
@@ -55,11 +56,29 @@ def make_ext(ext):
 
 # this is just for the cython files and is not designed to actually build the all-in-one application yet
 setup(
-    name='Membrane Analysis',
-    packages=['analysis'],
+    name='cell-structure',
+    version='1.0',
+    description='Najafian Lab Image Cell Structure Analysis. A structural analysis, of membranes and other cellular component, based on electron microscopy images with complex datasets',
+    author='David Smerkous',
+    author_email='smerkd@uw.edu',
+    include_package_data=True,
+    packages=find_packages(include=['structure', 'structure.*']),
+    install_requires=[
+        'numpy>=1.14.5',
+        'opencv-python>=4.3.0.36',
+        'scikit-image>=0.18.1',
+        'cython>=0.29.0',
+        'htmlmin>=0.1.12',
+        'jsmin>=2.2.2',
+        'rcssmin>=1.0.6',
+        'wxpython>=4.1.1',
+        'imutils>=0.5.0',
+        'imagecodecs',
+        'six'
+    ],
     ext_modules=cythonize(
         [make_ext(ext) for ext in scandir('.')],
-        language_level=3,
+        language_level=LANG_LEVEL,
         # nthreads=1# ,
         # gdb_debug=True
     )
